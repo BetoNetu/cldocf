@@ -9,13 +9,17 @@ License: GNU/AGPL-V3
 
 ## Instalation
 
+### Linux
 1. Clone the repository
 2. Execute cldocf/install.sh
 ```bash
 git clone https://github.com/BetoNetu/cldocf
 cd cldocf #go into created dir
+chmod +x install.sh
 bash ./install.sh
 ```
+### Windows
+Coming soon...
 
 ## Usage
 ```bash
