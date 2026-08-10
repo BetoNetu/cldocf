@@ -30,7 +30,7 @@ show_help() {
     printf "\n${BOLD}Cl${RESET}ear ${BOLD}Doc${RESET}ument ${BOLD}f${RESET}iles - Remove metadata from DOCX and ODT internal XML files using zip\n"
     printf "Usage: ${BOLD}${0##*/}${RESET} [options] file.extension\n"
     printf "  -v, --verbose   Enable verbose output\n"
-    printf "  -l, --logging   Enable verbose logging (WIP-Not implemented)\n"
+    printf "  -l, --logging   Enable verbose logging\n"
     printf "  -d, --data      Show the replaced metadata files and new content\n"
     printf "  -h, --help      Show this help\n"
 }
