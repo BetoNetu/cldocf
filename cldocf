@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+
+#===================================================================================
+#                             ooooooooooo                                                  
+#        ,,,,,,,,,, ,,,,,       ooo      ooo                                 ;;;;;;        
+#   ,,,,    ,,,,,  ,,,,,,       ooo       ooo                                ;;;;          
+#  ,,,,,           ,,,,,        ooo        ooo      ooooo         ooooo     ;;;;;;;        
+# ,,,,,           ,,,,,         ooo        ooo    oo     oo     oo    ooo   ;;;;;;;        
+# ,,,,,            ,,,,         ooo        ooo   oo       oo   ooo           ;;;;          
+# ,,,,,          ,              ooo        ooo  ooo       ooo  oo            ;;;;          
+# ,,,,,,,,,,,,,  ,,,    ,,,,,,  ooo       ooo   ooo       oo   ooo           ;;;;          
+#   ,,,,,,,,,,  ,,,,,,,    ,,,  ooo      ooo     ooo     ooo    ooo    oo    ;;;;          
+#      ,,,,,,  ,,,,,,,,,,     ooooooooooo           ooooo         oooooo     ;;;; 
+#===================================================================================
+# Clear Document files (aka cldocf) is a (stupidly) symple Shell (bash) Script that
+# uses native zip and unzip UNIX commands to edit ODT's and DOCX's metadata by 
+# replacing the content of some XML files and repacking the docs. It is meant for 
+# simple use: like sending a "fully anonimized" copy of a file to a Journal that asks
+# for clean metadata.
+#
+# Developed by: betor ()
+# License: GNU/AGPL-V3
+
+#==================================================================================
+#                                 Options functions
+#==================================================================================
+
+show_help() {
+    printf "\n${LOGO}"
+    printf "\n${BOLD}Cl${RESET}ear ${BOLD}Doc${RESET}ument ${BOLD}f${RESET}iles - Remove metadata from DOCX and ODT internal XML files using zip\n"
+    printf "Usage: ${BOLD}${0##*/}${RESET} [options] file.extension\n"
+    printf "  -v, --verbose   Enable verbose output\n"
+    printf "  -l, --logging   Enable verbose logging (WIP-Not implemented)\n"
+    printf "  -d, --data      Show the replaced metadata files and new content\n"
+    printf "  -h, --help      Show this help\n"
+}
+show_data() {
+    printf "\n${BOLD}Files Metadata information\n\n"
+    printf "${BOLD}DOCX Metadata Info\n\n"
+    printf "${BOLD}core.xml${RESET}:\n\n"
+    printf '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    printf '<cp:coreProperties xmlns:cp="http://openxmlformats.org" xmlns:dc="http://purl.org" xmlns:dcterms="http://purl.org" xmlns:dcmitype="http://purl.org" xmlns:xsi="http://w3.org">\n'
+    printf '</cp:coreProperties>\n\n'
+    
+    printf "${BOLD}app.xml${RESET}:\n\n"
+    printf '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    printf '<Properties xmlns="http://openxmlformats.org" xmlns:vt="http://openxmlformats.org">\n'
+    printf '\t<TotalTime>0</TotalTime>\n'
+    printf '\t<Application></Application>\n'
+    printf '\t<AppVersion>0</AppVersion>\n'
+    printf '\t<Company></Company>\n'
+    printf '</Properties>\n\n'
+    
+    printf "Removes ${BOLD}custom.xml${RESET}.\n\n" 
+
+    printf "${BOLD}ODT Metadata Info\n\n"
+    printf "${BOLD}meta.xml${RESET}:\n"
+    printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+    printf '<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org" office:version="1.3">\n'
+    printf '  <office:meta>\n'
+    printf '    <meta:editing-duration>PT0S</meta:editing-duration>\n'
+    printf '    <meta:editing-cycles>0</meta:editing-cycles>\n'
+    printf '  </office:meta>\n'
+    printf '</office:document-meta>\n'
+}
+
+start_log() {
+    # Verifica se LOG_FILE está definido
+    if [ -z "${LOG_FILE}" ]; then
+        printf "Error: logfile was not recognized not set\n" >&2
+        return 1
+    fi
+    #try to create log dir
+    if [ ! -d "${LOG_DIR}" ]; then
+        if  ! mkdir -p "${LOG_DIR}"; then
+            printf "Error: Failed to create ${LOG_DIR}. Assigning it to current directory..."
+            LOG_DIR=$(pwd)
+            LOG_FILE="${LOG_DIR}/${LOG_FILE}"
+        fi
+    fi
+
+    # Testa se o arquivo é gravável
+    if ! touch "${LOG_FILE}"; then
+        printf "Error: Cannot write to log file: %s\n" "${LOG_FILE}" >&2
+        return 1
+    fi
+    
+    # Redireciona stdout
+    if ! exec > >(tee -a "${LOG_FILE}"); then
+        printf "Error: Failed to redirect output\n" >&2
+        return 1
+    fi
+    
+    # Redireciona stderr se NÃO for verbose
+    if [ "${VERBOSE}" -eq 0 ]; then
+        exec 2>&1   # Merge stderr into stdout so it gets logged
+    fi
+    
+    # Escreve cabeçalho
+    echo "=============================="
+    echo "=== Log started at $(date) ==="
+    echo "=============================="
+    
+    return 0
+}
+#==================================================================================
+#                              Manipulation Functions
+#==================================================================================
+
+# Prints if vebose -> create a verbose structure and hides if the user do not want all the toutputs
+msg() {
+    if [ ${VERBOSE} -eq 1 ]; then 
+        printf "%s\n" "$*"
+    fi
+}
+
+handle_error() {
+    local type="$1"
+    printf "Error: %s\n" "$type"
+    if [ ${#FILES[@]} -gt 1 ]; then
+        msg "Skipping to next file..."
+        ((ERROR++))
+        return 1
+    else
+        ((ERROR++))
+        if [ ${LOG} -eq 1 ]; then #only prints after LOG is started
+            printf "Log saved at: ${LOG_FILE}"
+        fi
+        printf "Total files processed: 1. Success:0. ERROS:${ERROR}.\n"
+        printf "Exiting...\n"
+        exit 1
+    fi
+}
+
+check_dir() {
+    msg "Cheking for ${TMP_DIR} existense..."
+    if [ ! -d "$TMP_DIR" ]; then
+        msg "Temporary directory ${TMP_DIR} was not created! Trying to create...\n"
+        if ! mkdir -p "${TMP_DIR}"; then
+            handle_error "Failed to create folder ${TMP_DIR}! Aborting unpacking...\n"
+            return $?
+        fi
+        msg "Directory ${TMP_DIR} created!\n"
+        return 0
+    fi
+    msg "Directory ${TMP_DIR} exists!\n"
+    return 0
+}
+#Tests Zip integrity based on verbosity
+zip_integrity(){
+    if [ ${VERBOSE} -eq 1 ]; then
+    # Test zip integrity again
+        if ! unzip -t "${INPUT_FILE}"; then
+            printf "Warning: Integrity test failed but file may still be usable.\n"
+            return 1  
+        fi
+    else
+        if ! unzip -t "${INPUT_FILE}" > /dev/null 2>&1; then
+            printf "Warning: Integrity test failed but file may still be usable.\n"
+            return 1
+        fi
+    fi
+    return 0 
+}
+#unzip
+unpack() {
+    if ! zip_integrity; then
+        handle_error "Original file may be corrupt. Aborting Unpack..."
+        return $?
+    fi
+    # Extract based on verbosity
+    if [ $VERBOSE -eq 1 ]; then
+        # Verbose mode: show contents
+        if ! unzip -v "${INPUT_FILE}";then 
+            handle_error "unzip -v failed for ${INPUT_FILE}"
+            return $?
+        fi
+        # Extract the file
+        if ! unzip -d "${TMP_DIR}" "${INPUT_FILE}"; then
+            handle_error "Failed to extract ${INPUT_FILE} to ${TMP_DIR}"
+            return $?
+        fi
+    else
+        # Quiet mode: extract directly
+        if ! unzip -q "${INPUT_FILE}" -d "${TMP_DIR}"; then
+            handle_error "Failed to extract ${INPUT_FILE} to ${TMP_DIR}"
+            return $?
+        fi
+    fi
+    return 0
+}
+#zip
+repack() {
+    local zip_opts="-q -r"
+    if [ $VERBOSE -eq 1 ]; then
+        zip_opts="-v -r"
+    fi
+    if ! cd "$TMP_DIR"; then
+        handle_error "Failed to go into ${TMP_DIR}. Aborting repack..."
+        return  $?
+    fi
+    msg "Moved inside ${TMP_DIR}"
+    #zips testing
+    if ! zip ${zip_opts} "../${OUTPUT_FILE}" *; then
+        handle_error "Failed to repack!"
+        return $?
+    fi
+    local original_file="${INPUT_FILE}"
+    INPUT_FILE="../${OUTPUT_FILE}"
+    msg "Successfully repacked. Testing intergity"
+    if ! zip_integrity; then
+        handle_error "Repacked file failed integrity test!"
+        return $?
+    fi
+    INPUT_FILE="${original_file}"
+    msg "Integrity ok!"
+    return 0
+}
+
+#==================================================================================
+#                                     Variables
+#==================================================================================
+LOG=0
+RUN=0
+VERBOSE=0
+SUC=0
+ERROR=0
+INPUT_FILE=""
+BOLD="\033[1m"
+RESET="\033[0m"
+SAY="Try ${BOLD}cldocf -h${RESET} | ${BOLD}--help ${RESET} for more info.\n"
+LOGO="
+                             ooooooooooo                                                  
+        ,,,,,,,,,, ,,,,,       ooo      ooo                                 ;;;;;;        
+   ,,,,    ,,,,,  ,,,,,,       ooo       ooo                                ;;;;          
+  ,,,,,           ,,,,,        ooo        ooo      ooooo         ooooo     ;;;;;;;        
+ ,,,,,           ,,,,,         ooo        ooo    oo     oo     oo    ooo   ;;;;;;;        
+ ,,,,,            ,,,,         ooo        ooo   oo       oo   ooo           ;;;;          
+ ,,,,,          ,              ooo        ooo  ooo       ooo  oo            ;;;;          
+ ,,,,,,,,,,,,,  ,,,    ,,,,,,  ooo       ooo   ooo       oo   ooo           ;;;;          
+   ,,,,,,,,,,  ,,,,,,,    ,,,  ooo      ooo     ooo     ooo    ooo    oo    ;;;;          
+      ,,,,,,  ,,,,,,,,,,     ooooooooooo           ooooo         oooooo     ;;;;          
+"
+
+#==================================================================================
+#         Options (supports -v, --verbose, -h, --help, -d, --data)
+#==================================================================================
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -v|--verbose) VERBOSE=1; shift ;;
+        -h|--help)
+           show_help
+           exit 0
+           ;;
+        -d|--data)
+		    show_data
+            exit 0
+            ;;
+        -l|--logging) LOG=1; shift ;;
+        --) shift; break ;;
+        -*) printf "Error: Unknown option: $1. ${SAY}"; exit 1 ;;
+        *) 
+        FILES+=("$1"); 
+        shift;;
+    esac
+done
+
+#==================================================================================
+#                                       Main
+#==================================================================================
+
+# Validate inputs
+if [ ${#FILES[@]} -eq 0 ]; then
+    printf "Error: No files specified. ${SAY}"
+    exit 1
+fi
+msg "Inputs Validated!"
+# Start Log if LOG=1
+if [ ${LOG} -eq 1 ]; then
+    LOG_DIR="$(pwd)/cldocf_logs"
+    LOG_FILE="${LOG_DIR}/log_$(date +%s).txt"
+    start_log
+    log_start_result=$?
+    if [ ${log_start_result} -ne 0 ]; then
+        printf "Error: Failed to start logging! Proceding anyway...\n"
+                LOG=0
+        else
+            msg " Started logging. It will be saved at ${LOG_FILE}!"
+    fi
+    msg "Log processor finished..."
+fi
+
+# Main Loop
+for file in "${FILES[@]}"; do
+    if [ ! -f "$file" ]; then
+        handle_error "File '$file' not found."
+        continue
+    else
+    #internal variables    
+    #if it reaches here set RUN=1
+        RUN=1
+        msg "Processing started at $(date +%s)"
+        INPUT_FILE="$file"
+        # logic for file header in verbose and/or logging
+        if [ ${LOG} -eq 1 ] && [ ${VERBOSE} -eq 1 ]; then
+            echo "================================"
+            echo "Processing: ${INPUT_FILE}"
+            echo "================================"
+        elif [ ${LOG} -eq 0 ] && [ ${VERBOSE} -eq 1 ]; then
+            msg "================================"
+            msg "Processing: ${INPUT_FILE}"
+            msg "================================"
+        elif [ ${LOG} -eq 1 ] && [ ${VERBOSE} -eq 0 ]; then
+            # This bypasses tee and writes only to the file
+            echo "================================" >> "${LOG_FILE}"
+            echo "Processing: ${INPUT_FILE}" >> "${LOG_FILE}"
+            echo "================================" >> "${LOG_FILE}"
+        fi
+        FILENAME=$(basename -- "$INPUT_FILE")
+        SAFE_NAME=$(echo "$FILENAME" | tr ' ' '_' | tr -d '()[]{}')
+        EXTENSION="${FILENAME##*.}"
+        FILENAME_NO_EXT="${FILENAME%.*}"
+        OUTPUT_FILE="${FILENAME_NO_EXT}_clean.${EXTENSION}"
+        TMP_DIR="tmp_doc_$(date +%s)_${SAFE_NAME}"
+        msg "Variables defined"
+         # --- Format-Specific Logic ---
+        msg "Checking ${file}'s extension"
+        case "$EXTENSION" in
+            docx)
+                # Replace DOCX-specific metadata files
+                msg "Trying to unpack $EXTENSION file..."
+                if ! check_dir; then
+                    continue
+                fi
+                if ! unpack; then
+                    continue
+                fi
+                msg "${INPUT_FILE} unpacked!"
+                msg "Editing metadata from ${INPUT_FILE}..."
+                msg "Editing ${TMP_DIR}/docProps/core.xml..."
+                cat > "${TMP_DIR}/docProps/core.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://openxmlformats.org" xmlns:dc="http://purl.org" xmlns:dcterms="http://purl.org" xmlns:dcmitype="http://purl.org" xmlns:xsi="http://w3.org">
+</cp:coreProperties>
+EOF
+                msg "${TMP_DIR}/docProps/core.xml edited!\n"
+                msg "Editing ${TMP_DIR}/docProps/app.xml...\n"
+                cat > "$TMP_DIR/docProps/app.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://openxmlformats.org" xmlns:vt="http://openxmlformats.org"><TotalTime>0</TotalTime>
+    <Application></Application>
+    <AppVersion>0</AppVersion>
+    <Company></Company>
+</Properties>
+EOF
+                msg "${TMP_DIR}/docProps/app.xml edited!"
+                msg "Deleting ${TMP_DIR}/docProps/custom.xml..."
+                rm -f "$TMP_DIR/docProps/custom.xml"
+                msg "${TMP_DIR}/docProps/custom.xml deleted!"
+                ;;
+            odt)
+                # Replace ODT-specific metadata file
+                msg "Trying to unpack $EXTENSION file..."
+                if ! check_dir; then
+                    continue
+                fi
+                if ! unpack; then
+                    continue
+                fi
+                msg "${INPUT_FILE} unpacked!"
+                msg "Editing metadata from ${INPUT_FILE}..."
+                cat > "${TMP_DIR}/meta.xml" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org" office:version="1.3">
+<office:meta>
+    <meta:editing-duration>PT0S</meta:editing-duration>
+    <meta:editing-cycles>0</meta:editing-cycles>
+</office:meta>
+</office:document-meta>
+EOF
+                msg "${TMP_DIR}/meta.xml edited!"
+                ;;
+            *)
+                handle_error ".$EXTENSION not supported."
+                continue
+                ;;
+        esac
+        # --- Cleanup ---
+        msg "Packing into $OUTPUT_FILE..."
+        if ! repack; then
+            handle_error "Failed repacking! ${TMP_DIR}"
+            continue
+        fi
+        msg "${OUTPUT_FILE} packed!"
+        msg "Exiting ${TMP_DIR}"
+        if ! cd ..; then
+            printf "Failed to exit ${TMP_DIR}. The folder will remain in current directory."
+            printf "Success! Clean file saved as: ${BOLD}$OUTPUT_FILE${RESET}."
+            ((SUC++))
+            continue
+        fi
+        msg "Trying to deleter ${TMP_DIR}..."
+        if rm -rf "${TMP_DIR}"; then
+            msg "${TMP_DIR} deleted!"
+        else
+            printf "Failed to delete ${TMP_DIR}. The folder will remain in current directory"
+        fi
+        printf "Success! Clean file saved as: ${BOLD}$OUTPUT_FILE${RESET}."
+        ((SUC++))  
+    fi
+done
+TOTAL=$((SUC + ERROR))
+if [ ${RUN} -eq 0 ]; then
+    handle_error "No valid file Found. ${SAY}"
+else
+    if [ ${LOG} -eq 1 ]; then
+        printf "Log saved at: ${LOG_FILE}.\n"
+    fi
+    printf "Total files processed: ${TOTAL}. Success:${SUC}. ERROS:${ERROR}.\n"
+fi
+exit 0
