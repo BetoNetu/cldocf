@@ -28,7 +28,7 @@ check_dir() {
 }
 
 USR_LOCAL="${HOME}/.local/bin"
-CMD_DIR="${HOME}/.user-commands/"
+CMD_DIR="${HOME}/.user-commands"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 #Create .user-comannds/cldocf inside .usr-cmds
