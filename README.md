@@ -25,7 +25,7 @@ Coming soon...
 ```bash
 cldocf [options] file.extension
 -v, --verbose   #Enable verbose output
--l, --logging   #Enable verbose logging
+-l, --logging   #Enable logging file procedures
 -d, --data      #Show the replaced metadata files and new content
 -h, --help      #Show this help
 ```
