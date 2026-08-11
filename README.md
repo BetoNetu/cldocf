@@ -16,7 +16,7 @@ License: GNU/AGPL-V3
 git clone https://github.com/BetoNetu/cldocf
 cd cldocf #go into created dir
 chmod +x install.sh
-bash ./install.sh
+./install.sh
 ```
 ### Windows
 Coming soon...
