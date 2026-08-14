@@ -18,8 +18,8 @@
 # simple use: like sending a "fully anonimized" copy of a file to a Journal that asks
 # for clean metadata.
 #
-# Developed by: betor ()
-# License: GNU/AGPL-V3
+# Developed by: betor (https://github.com/BetoNetu)
+# License: GNU/AGPL-V3 (https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 #==================================================================================
 #                                 Options functions
