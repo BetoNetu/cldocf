@@ -2,7 +2,7 @@
 # Clean Document Files
 #### A Shell (bash) Script that uses native zip and unzip UNIX commands to edit ODT's and DOCX's metadata
 
-**Cl**ear **Doc**ument **f**iles (aka **cldocf**) is a (stupidly) symple Shell (bash) Script that uses native zip and unzip UNIX commands to edit ODT's and DOCX's metadata by replacing the content of some XML files and repacking the docs. It is meant for  simple use: like sending a "fully anonimized" copy of a file to a Journal that asks for clean metadata. It also has a "native" port for Windows devices with a compiled exe and/or
+**Cl**ear **Doc**ument **f**iles (aka **cldocf**) is a (stupidly) symple Shell (bash) Script that uses native zip and unzip UNIX commands to edit ODT's and DOCX's metadata by replacing the content of some XML files and repacking the docs. It is meant for  simple use: like sending a "fully anonimized" copy of a file to a Journal that asks for clean metadata. It also has a "native" port for Windows devices with a compiled .exe for non Command Line Interface (CLI) users.
 
 Developed by: [_betor_](https://github.com/BetoNetu) <br>
 License: [GNU/AGPL-V3](https://www.gnu.org/licenses/agpl-3.0.en.html)
