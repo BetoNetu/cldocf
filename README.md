@@ -40,14 +40,13 @@ License: [GNU/AGPL-V3](https://www.gnu.org/licenses/agpl-3.0.en.html)
 
 1. **Download the repository**  
    Click the green **"Code"** button on GitHub and select **"Download ZIP"**.  
-   *(Or use [this direct link](https://github.com/BetoNetu/cldocf/archive/refs/heads/main.zip).)*
 
 2. **Extract the ZIP folder**  
    Right‑click the downloaded `cldocf-main.zip` file and choose **"Extract All..."**.  
    Select a permanent location, for example:  
    `C:\cldocf` or `Documents\cldocf`.  
-   *(Do not extract to a temporary folder – you'll want to keep these files.)*
-   *You can now delete everything **except** the `cldocf-win` folder (the programm files for windows are there)*
+   *(Do not extract to a temporary folder – you'll want to keep these files)*.  
+   *You can now delete everything **except** the `cldocf-win` folder (the programm files for windows are there)*.
 
 3. **Choose your preferred method**
 
